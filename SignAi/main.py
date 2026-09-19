@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 import nltk
 from nltk.corpus import stopwords
@@ -20,6 +22,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 MODEL_FILE = os.path.join(BASE_DIR, "sign_model_v5.pkl")
 DATASET_FILE = os.path.join(BASE_DIR, "sign_dataset.json")
+GESTURES_DIR = os.path.join(BASE_DIR, "gestures")
 
 
 # =========================================================
@@ -38,6 +41,12 @@ nltk.download("stopwords")
 app = FastAPI(
     title="SignAI Backend",
     version="1.0.0"
+)
+
+app.mount(
+    "/gestures",
+    StaticFiles(directory=GESTURES_DIR),
+    name="gestures"
 )
 
 
@@ -706,20 +715,39 @@ def predict_sign(data: PredictionInput):
 
 
 # =========================================================
-# HEALTH CHECK
+# WEBSITE PAGES
 # =========================================================
 
 @app.get("/")
 def root():
 
-    return {
+    return FileResponse(
+        os.path.join(BASE_DIR, "index.html")
+    )
 
-        "status": "online",
 
-        "message": "SignAI backend is running",
+@app.get("/realtime.html")
+def realtime_page():
 
-        "model_loaded": model is not None
-    }
+    return FileResponse(
+        os.path.join(BASE_DIR, "realtime.html")
+    )
+
+
+@app.get("/practice.html")
+def practice_page():
+
+    return FileResponse(
+        os.path.join(BASE_DIR, "practice.html")
+    )
+
+
+@app.get("/collect.html")
+def collect_page():
+
+    return FileResponse(
+        os.path.join(BASE_DIR, "collect.html")
+    )
 
 
 # =========================================================
