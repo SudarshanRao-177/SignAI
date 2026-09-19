@@ -119,7 +119,7 @@ hands.onResults(async results=>{
 
   if(features.length!==63)throw new Error("Expected 63 features, received "+features.length);
 
-  const response=await fetch("http://127.0.0.1:8000/predict-sign",{
+  const response=await fetch("https://signai-hvuc.onrender.com/predict-sign",{
    method:"POST",
    headers:{"Content-Type":"application/json"},
    body:JSON.stringify({landmarks:features})

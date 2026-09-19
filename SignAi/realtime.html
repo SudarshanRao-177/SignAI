@@ -600,7 +600,7 @@ hands.onResults(async function(results) {
         ============================================= */
 
         const response = await fetch(
-            "http://127.0.0.1:8000/predict-sign",
+            "https://signai-hvuc.onrender.com/predict-sign",
             {
                 method: "POST",
 
@@ -872,7 +872,7 @@ async function generateNaturalSentence() {
     try {
 
         const response = await fetch(
-            "http://127.0.0.1:8000/natural-sentence",
+            "https://signai-hvuc.onrender.com/natural-sentence",
             {
                 method: "POST",
 

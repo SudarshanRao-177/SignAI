@@ -141,7 +141,7 @@ async function sendText() {
     outputDiv.innerHTML = "<p>Generating sign animation…</p>";
 
     try {
-        const response = await fetch("http://127.0.0.1:8000/text-to-gesture", {
+        const response = await fetch("https://signai-hvuc.onrender.com/text-to-gesture", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text })
