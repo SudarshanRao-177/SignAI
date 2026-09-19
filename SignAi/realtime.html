@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>SignAI | AI Sign Language Translator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="SignAI LOGO.png">
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <style>
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+*{box-sizing:border-box}
+:root{--bg:#071225;--panel:rgba(19,40,75,.60);--panel2:rgba(10,27,55,.72);--line:rgba(100,181,255,.30);--blue:#2696ff;--cyan:#35d7ff;--green:#32e6a4;--text:#f3f8ff;--muted:#a9bedb;--danger:#ff7180}
+html{scroll-behavior:smooth}
+body{margin:0;min-height:100vh;font-family:"Manrope","Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 15% 0%,rgba(25,132,255,.25),transparent 32%),radial-gradient(circle at 90% 10%,rgba(53,215,255,.12),transparent 28%),linear-gradient(135deg,#061022,#0a1933 55%,#071225);overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(120deg,transparent 35%,rgba(255,255,255,.025) 50%,transparent 65%);opacity:.7}
+button{font-family:inherit}
+.topbar{position:sticky;top:0;z-index:1000;background:rgba(5,16,34,.78);backdrop-filter:blur(20px);border-bottom:1px solid rgba(90,161,235,.20);box-shadow:0 8px 35px rgba(0,0,0,.22)}
+.brand-row{max-width:1240px;margin:auto;min-height:76px;padding:9px 24px;display:flex;align-items:center}
+.brand{display:flex;align-items:center;gap:13px}.brand-logo{width:66px;height:51px;object-fit:contain;border-radius:12px}.brand-name{margin:0;font-size:28px;line-height:1;font-weight:800;letter-spacing:-.8px}.brand-name span{color:var(--cyan)}.creator{margin:5px 0 0;color:#89a6c8;font-size:9px;letter-spacing:2px;font-weight:800;text-transform:uppercase}.creator strong{color:#72aaff}
+.feature-tabs{max-width:1240px;margin:auto;padding:0 24px 11px;display:flex;gap:7px;overflow-x:auto}
+.feature-tab{flex:0 0 auto;text-decoration:none;color:#c4d5eb;background:rgba(255,255,255,.035);border:1px solid rgba(122,174,225,.18);border-radius:999px;padding:9px 14px;font-size:12px;font-weight:800;transition:.2s;box-shadow:inset 0 1px rgba(255,255,255,.05)}.feature-tab:hover{border-color:rgba(38,150,255,.55);color:#fff}.feature-tab.active{background:linear-gradient(135deg,#147fff,#2c62ff);border-color:#4bb7ff;color:#fff;box-shadow:0 0 25px rgba(38,150,255,.35)}
+.page-shell{max-width:1240px;margin:auto;padding:30px 24px 65px}.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;margin-bottom:20px}.page-title{margin:0 0 7px;font-size:clamp(28px,4vw,42px);letter-spacing:-1.3px}.page-subtitle{margin:0;color:var(--muted);font-size:14px;line-height:1.55}.live-badge{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(38,150,255,.11);border:1px solid rgba(83,186,255,.30);color:#dceeff;font-size:12px;font-weight:800;white-space:nowrap;box-shadow:0 0 22px rgba(38,150,255,.10)}.live-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 5px rgba(50,230,164,.10),0 0 16px rgba(50,230,164,.7)}
+.workspace{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(330px,.82fr);gap:20px;align-items:start}.card{background:linear-gradient(145deg,rgba(24,50,91,.66),rgba(8,24,49,.74));border:1px solid var(--line);border-radius:20px;box-shadow:0 18px 55px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.07);backdrop-filter:blur(18px)}
+.camera-card{padding:17px;border-color:rgba(50,172,255,.58);box-shadow:0 0 0 1px rgba(38,150,255,.07),0 20px 55px rgba(0,0,0,.27),0 0 28px rgba(38,150,255,.08)}.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}.card-title{margin:0;font-size:15px;font-weight:800}.card-hint{color:#9ab4d3;font-size:11px}
+.camera-wrap{position:relative;overflow:hidden;border-radius:15px;background:#020b1a;aspect-ratio:4/3;border:1px solid rgba(116,188,255,.24);box-shadow:inset 0 0 35px rgba(0,0,0,.35)}video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block}.camera-overlay{position:absolute;inset:0;border-radius:15px;pointer-events:none;border:1px solid rgba(80,208,255,.15)}.camera-overlay:before,.camera-overlay:after{content:"";position:absolute;width:27px;height:27px;border-color:#55efc0;border-style:solid}.camera-overlay:before{left:16px;top:16px;border-width:2px 0 0 2px}.camera-overlay:after{right:16px;bottom:16px;border-width:0 2px 2px 0}.camera-label{position:absolute;top:11px;left:11px;padding:7px 10px;border-radius:8px;background:rgba(4,13,27,.75);color:#fff;font-size:10px;font-weight:800;backdrop-filter:blur(8px)}.camera-label:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff5e6d;margin-right:6px}
+.controls{display:flex;flex-wrap:wrap;gap:9px;margin-top:13px}.controls button{margin:0;padding:11px 14px;border-radius:10px;border:1px solid rgba(132,178,224,.25);background:rgba(255,255,255,.06);color:#e8f3ff;cursor:pointer;font-size:12px;font-weight:800;transition:.18s}.controls button:hover{transform:translateY(-1px);border-color:rgba(72,184,255,.65)}.controls button:first-child{background:linear-gradient(135deg,#158cff,#2d59ff);border-color:#4dbbff;box-shadow:0 8px 22px rgba(24,125,255,.24)}
+.side{display:grid;gap:12px}.status-card,.prediction-card,.output-card{padding:16px}.status-card #status{margin:0;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,.055);border:1px solid rgba(143,187,228,.13);color:#d7e6f7;font-size:12px;font-weight:700}.prediction-label{color:#94adca;font-size:10px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}#prediction{margin:6px 0 4px;font-size:31px;font-weight:900;letter-spacing:-1px;color:#49eab2}#confidence{margin:0;color:#bed0e6;font-size:12px;font-weight:700}.confidence-track{height:8px;margin-top:12px;border-radius:999px;background:rgba(150,190,230,.16);overflow:hidden}.confidence-fill{width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#27d9ff,#258eff,#35e6a5);box-shadow:0 0 12px rgba(39,217,255,.45);transition:width .25s}
+#confirmationPanel{padding:14px;background:linear-gradient(145deg,rgba(26,58,96,.64),rgba(12,30,58,.72));border:1px solid rgba(100,178,238,.25);border-radius:16px;box-shadow:inset 0 1px rgba(255,255,255,.06)}#confirmationTitle{font-size:12px;color:#d6e6f8;font-weight:800;margin-bottom:10px}#confirmPrediction,#rejectPrediction{width:100%;margin:4px 0;padding:11px;border-radius:10px;font-size:12px;font-weight:850;cursor:pointer;transition:.18s}#confirmPrediction{background:rgba(41,228,166,.15);border:1px solid rgba(41,228,166,.65);color:#55efc0}#rejectPrediction{background:rgba(255,92,111,.10);border:1px solid rgba(255,100,118,.48);color:#ff8b99}#confirmPrediction:hover,#rejectPrediction:hover{transform:translateY(-1px);filter:brightness(1.1)}#confirmPrediction:disabled,#rejectPrediction:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.output-card{display:grid;gap:7px}.output-title{margin:0;color:#9db6d3;font-size:10px;font-weight:850;letter-spacing:1px;text-transform:uppercase}#sentence,#naturalSentence{margin:0;padding:12px;border-radius:10px;background:rgba(255,255,255,.055);border:1px solid rgba(136,184,230,.15);color:#e7f2ff;text-align:left;font-size:13px;font-weight:750;line-height:1.45}#naturalSentence{background:linear-gradient(135deg,rgba(39,154,255,.08),rgba(111,68,255,.12))}#info{margin:3px 0 0;padding:10px;border-radius:10px;background:rgba(255,255,255,.035);border:1px solid rgba(136,184,230,.11);color:#88a4c3;font-size:9px;line-height:1.5;text-align:left}
+@media(max-width:900px){.workspace{grid-template-columns:1fr}}@media(max-width:650px){.brand-row{padding:8px 14px}.brand-logo{width:57px;height:44px}.brand-name{font-size:24px}.feature-tabs{padding-left:14px;padding-right:14px}.page-shell{padding:24px 13px 50px}.hero{flex-direction:column;align-items:flex-start}.controls button{flex:1 1 42%}}
+</style>
+</head>
+
+<body>
+
+    <header class="topbar">
+        <div class="brand-row">
+            <div class="brand">
+                <img class="brand-logo" src="SignAI LOGO.png" alt="SignAI logo">
+                <div>
+                    <h1 class="brand-name">Sign<span>AI</span></h1>
+                    <p class="creator">Created by <strong>JACS</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <nav class="feature-tabs" aria-label="SignAI features">
+            <a class="feature-tab" href="index.html">🏠 Home</a>
+            <a class="feature-tab active" href="realtime.html">🤟 Live Sign</a>
+            <a class="feature-tab" href="index.html#text-to-sign">⌨️ Text to Sign</a>
+            <a class="feature-tab" href="index.html#voice-to-sign">🎤 Voice to Sign</a>
+            <a class="feature-tab" href="collect.html">📚 Dataset</a>
+            <a class="feature-tab" href="index.html#about">ℹ️ About</a>
+        </nav>
+    </header>
+
+    <main class="page-shell">
+
+        <section class="hero">
+            <div>
+                <h2 class="page-title">Real-Time Sign Translation</h2>
+                <p class="page-subtitle">
+                    Show a hand sign to translate it into words, build a complete sentence,
+                    and speak the result naturally.
+                </p>
+            </div>
+            <div class="live-badge">
+                <span class="live-dot"></span>
+                AI Recognition Ready
+            </div>
+        </section>
+
+        <section class="workspace">
+
+            <div class="card camera-card">
+                <div class="card-head">
+                    <h3 class="card-title">🤟 Camera Recognition</h3>
+                    <span class="card-hint">One hand • Live AI</span>
+                </div>
+
+                <div class="camera-wrap">
+                    <video id="video" autoplay playsinline muted></video>
+                    <div class="camera-overlay"></div>
+                    <div class="camera-label">LIVE CAMERA</div>
+                </div>
+
+                <div class="controls">
+                    <button onclick="startCamera()">📷 Start Camera</button>
+                    <button onclick="stopCamera()">⛔ Stop</button>
+                    <button onclick="clearSentence()">🗑️ Clear</button>
+                    <button onclick="speakSentence()">🔊 Speak</button>
+                </div>
+            </div>
+
+            <div class="side">
+
+                <div class="card status-card">
+                    <div class="card-head">
+                        <h3 class="card-title">AI Status</h3>
+                    </div>
+                    <div id="status">Camera not started</div>
+                </div>
+
+                <div class="card prediction-card">
+                    <div class="prediction-label">Current Prediction</div>
+                    <div id="prediction">—</div>
+                    <div id="confidence">Confidence: —</div>
+                    <div class="confidence-track">
+                        <div class="confidence-fill" id="confidenceFill"></div>
+                    </div>
+                </div>
+
+                <div id="confirmationPanel">
+                    <div id="confirmationTitle">
+                        AI Prediction — choose ADD or REJECT within 4 seconds
+                    </div>
+                    <button id="confirmPrediction" onclick="confirmPrediction()" disabled>
+                        ✓ ADD PREDICTION
+                    </button>
+                    <button id="rejectPrediction" onclick="rejectPrediction()" disabled>
+                        ✕ REJECT
+                    </button>
+                </div>
+
+                <div class="card output-card">
+                    <div class="output-title">Recognized Sequence</div>
+                    <div id="sentence">Recognized signs: —</div>
+
+                    <div class="output-title">Natural Sentence</div>
+                    <div id="naturalSentence">Natural sentence: —</div>
+
+                    <div id="info">
+                        85%+ signs are added automatically. 40–84% signs use ADD/REJECT.
+                        35–39% signs are auto-added after 2.5 seconds of stable display.
+                        Predictions below 35% are ignored.
+                    </div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+<script>
+
+/* =====================================================
+   CAMERA
+===================================================== */
+
+let stream = null;
+let cameraStarted = false;
+let processing = false;
+let lastPredictionTime = 0;
+
+
+/* =====================================================
+   SENTENCE
+===================================================== */
+
+let sentence = [];
+
+
+/* =====================================================
+   SIGN RECOGNITION CONTROL
+===================================================== */
+
+/*
+   A sign must remain stable for this many predictions.
+
+   Prediction interval = 150 ms
+   2 stable predictions ≈ 0.3 seconds
+*/
+
+const REQUIRED_STABLE_COUNT = 3;
+
+
+/*
+   Minimum confidence accepted.
+*/
+
+const MIN_CONFIDENCE = 0.60;
+
+
+/*
+   Time between requests to backend.
+*/
+
+const PREDICTION_INTERVAL = 180;
+
+
+/*
+   After accepting a sign, wait this long before
+   accepting a different sign.
+
+   This makes the system easier to use.
+*/
+
+const SIGN_COOLDOWN = 0;
+
+
+/*
+   Current stable candidate.
+*/
+
+let candidateSign = "";
+
+
+/*
+   Number of consecutive predictions for candidate.
+*/
+
+let candidateCount = 0;
+
+
+/*
+   Last sign accepted into sentence.
+*/
+
+let lastAcceptedSign = "";
+
+
+/*
+   Time at which last sign was accepted.
+*/
+
+let lastAcceptedTime = 0;
+
+let sentenceTimer = null;
+const SENTENCE_DELAY = 1200;
+
+// Manual confirmation is used only when the AI is uncertain.
+// High-confidence predictions are accepted automatically.
+const AUTO_ACCEPT_CONFIDENCE = 0.60;
+
+// Predictions from 34% confidence upward are usable.
+// 34–84.99% -> manual confirmation; 85%+ -> automatic.
+const MIN_PREDICTION_CONFIDENCE = 0.60;
+
+// 35–39.99% predictions are auto-accepted if the same
+// sign remains visible for 2.5 seconds.
+const LOW_CONFIDENCE_AUTO_ACCEPT_MIN = 0.35;
+const LOW_CONFIDENCE_AUTO_ACCEPT_MAX = 0.40;
+const LOW_CONFIDENCE_AUTO_ACCEPT_TIME = 2500;
+
+let lowConfidenceAutoTimer = null;
+let lowConfidenceAutoSign = "";
+
+let manualConfirmTimer = null;
+
+let pendingPrediction = "";
+let pendingConfidence = 0;
+
+
+/* =====================================================
+   STABLE LIVE PREDICTION BUFFER
+   Uses recent real model predictions to reduce flicker.
+   Confidence is averaged; it is never artificially increased.
+===================================================== */
+
+const PREDICTION_HISTORY_SIZE = 5;
+let predictionHistory = [];
+
+function resetPredictionHistory() {
+    predictionHistory = [];
+}
+
+function addPredictionToHistory(prediction, confidence) {
+    predictionHistory.push({ prediction, confidence });
+
+    if (predictionHistory.length > PREDICTION_HISTORY_SIZE) {
+        predictionHistory.shift();
+    }
+}
+
+function getStablePrediction() {
+    if (!predictionHistory.length) return null;
+
+    const counts = {};
+    for (const item of predictionHistory) {
+        counts[item.prediction] =
+            (counts[item.prediction] || 0) + 1;
+    }
+
+    let bestPrediction = "";
+    let bestCount = 0;
+
+    for (const sign in counts) {
+        if (counts[sign] > bestCount) {
+            bestPrediction = sign;
+            bestCount = counts[sign];
+        }
+    }
+
+    const sameSign = predictionHistory.filter(
+        item => item.prediction === bestPrediction
+    );
+
+    const averageConfidence =
+        sameSign.reduce(
+            (sum, item) => sum + item.confidence, 0
+        ) / sameSign.length;
+
+    return {
+        prediction: bestPrediction,
+        confidence: averageConfidence,
+        count: bestCount
+    };
+}
+
+
+/* =====================================================
+   ELEMENTS
+===================================================== */
+
+const video = document.getElementById("video");
+
+const status = document.getElementById("status");
+
+const predictionDiv =
+    document.getElementById("prediction");
+
+const confidenceDiv =
+    document.getElementById("confidence");
+
+const sentenceDiv =
+    document.getElementById("sentence");
+
+const naturalSentenceDiv =
+    document.getElementById("naturalSentence");
+
+const confirmButton =
+    document.getElementById("confirmPrediction");
+
+const rejectButton =
+    document.getElementById("rejectPrediction");
+
+
+/* =====================================================
+   MEDIAPIPE
+===================================================== */
+
+const hands = new Hands({
+
+    locateFile: function(file) {
+
+        return "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" + file;
+
+    }
+
+});
+
+
+hands.setOptions({
+
+    maxNumHands: 1,
+
+    modelComplexity: 1,
+
+    minDetectionConfidence: 0.6,
+
+    minTrackingConfidence: 0.6
+
+});
+
+
+/* =====================================================
+   LOW-CONFIDENCE AUTO ACCEPT
+===================================================== */
+
+function cancelLowConfidenceAutoAccept() {
+
+    if (lowConfidenceAutoTimer) {
+        clearTimeout(lowConfidenceAutoTimer);
+        lowConfidenceAutoTimer = null;
+    }
+
+    lowConfidenceAutoSign = "";
+}
+
+
+/* =====================================================
+   MANUAL PREDICTION CONFIRMATION
+===================================================== */
+
+function showPendingPrediction(prediction, confidence) {
+
+    pendingPrediction = prediction;
+    pendingConfidence = confidence;
+
+    confirmButton.disabled = false;
+    rejectButton.disabled = false;
+
+    confirmButton.innerText =
+        '✓ ADD "' + prediction.toUpperCase() + '"';
+
+    rejectButton.innerText =
+        '✕ REJECT "' + prediction.toUpperCase() + '"';
+
+    status.innerText =
+        "🟠 AI is unsure: " +
+        prediction.toUpperCase() +
+        " (" + (confidence * 100).toFixed(1) +
+        "%) - choose within 4 seconds";
+
+    if (manualConfirmTimer) {
+        clearTimeout(manualConfirmTimer);
+    }
+
+    manualConfirmTimer = setTimeout(function() {
+
+        if (pendingPrediction === prediction) {
+
+            clearPendingPrediction();
+
+            candidateSign = "";
+            candidateCount = 0;
+
+            status.innerText =
+                "⏱ No choice made - show the sign again";
+        }
+
+    }, MANUAL_CONFIRM_TIMEOUT);
+}
+
+function clearPendingPrediction() {
+
+    if (manualConfirmTimer) {
+        clearTimeout(manualConfirmTimer);
+        manualConfirmTimer = null;
+    }
+
+    pendingPrediction = "";
+    pendingConfidence = 0;
+
+    confirmButton.disabled = true;
+    rejectButton.disabled = true;
+
+    confirmButton.innerText = "✓ ADD PREDICTION";
+    rejectButton.innerText = "✕ REJECT";
+}
+
+
+function confirmPrediction() {
+
+    cancelLowConfidenceAutoAccept();
+
+    if (!pendingPrediction) {
+        return;
+    }
+
+    const prediction = pendingPrediction;
+
+    if (prediction === lastAcceptedSign) {
+
+        status.innerText =
+            "✋ " + prediction.toUpperCase() +
+            " is already the last sign";
+
+        clearPendingPrediction();
+        return;
+    }
+
+    sentence.push(prediction);
+
+    lastAcceptedSign = prediction;
+    lastAcceptedTime = Date.now();
+
+    candidateSign = "";
+    candidateCount = 0;
+
+    updateSentenceDisplay();
+    scheduleNaturalSentence();
+
+    clearPendingPrediction();
+
+    status.innerText =
+        "✅ " + prediction.toUpperCase() +
+        " added - show next sign";
+}
+
+
+function rejectPrediction() {
+
+    cancelLowConfidenceAutoAccept();
+
+    if (!pendingPrediction) {
+        return;
+    }
+
+    const rejected = pendingPrediction;
+
+    clearPendingPrediction();
+
+    candidateSign = "";
+    candidateCount = 0;
+
+    status.innerText =
+        "❌ " + rejected.toUpperCase() +
+        " rejected - show the sign again";
+}
+
+
+/* =====================================================
+   HAND RESULTS
+===================================================== */
+
+hands.onResults(async function(results) {
+
+    if (!cameraStarted) {
+        return;
+    }
+
+
+    /* =================================================
+       NO HAND
+    ================================================= */
+
+    if (
+        !results.multiHandLandmarks ||
+        results.multiHandLandmarks.length === 0
+    ) {
+
+        predictionDiv.innerText =
+            "Prediction: —";
+
+        confidenceDiv.innerText =
+            "Confidence: —";
+
+        if (confidenceFill) {
+            confidenceFill.style.width = "0%";
+        }
+
+        status.innerText =
+            "🟡 Show your hand";
+
+        /*
+           Reset only the candidate.
+           Do NOT erase the sentence.
+        */
+
+        candidateSign = "";
+        candidateCount = 0;
+        clearPendingPrediction();
+
+        return;
+    }
+
+
+    /* =================================================
+       LANDMARKS
+    ================================================= */
+
+    const landmarks =
+        results.multiHandLandmarks[0];
+
+    const features = [];
+
+    for (const point of landmarks) {
+
+        features.push(point.x);
+        features.push(point.y);
+        features.push(point.z);
+
+    }
+
+
+    /* =================================================
+       REQUEST RATE
+    ================================================= */
+
+    const now = Date.now();
+
+    if (
+        now - lastPredictionTime <
+        PREDICTION_INTERVAL
+    ) {
+        return;
+    }
+
+    if (processing) {
+        return;
+    }
+
+    lastPredictionTime = now;
+    processing = true;
+
+
+    try {
+
+        /* =============================================
+           SEND TO FASTAPI
+        ============================================= */
+
+        const response = await fetch(
+            "http://127.0.0.1:8000/predict-sign",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    landmarks: features
+                })
+            }
+        );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Backend error: " +
+                response.status
+            );
+
+        }
+
+
+        const data =
+            await response.json();
+
+
+        /* =============================================
+           READ PREDICTION
+        ============================================= */
+
+        const prediction =
+            String(
+                data.prediction || "unknown"
+            ).toLowerCase();
+
+        const confidence =
+            Number(
+                data.confidence || 0
+            );
+
+
+        /* =============================================
+           CONFIRMATION LOCK
+        ============================================= */
+
+        if (pendingPrediction) {
+            status.innerText =
+                "🟠 Confirm " +
+                pendingPrediction.toUpperCase() +
+                " (" +
+                (pendingConfidence * 100).toFixed(1) +
+                "%) — ADD or REJECT";
+            return;
+        }
+
+
+        /* =============================================
+           REAL MODEL CONFIDENCE FILTER
+        ============================================= */
+
+        if (
+            prediction === "unknown" ||
+            confidence < MIN_PREDICTION_CONFIDENCE
+        ) {
+            resetPredictionHistory();
+            candidateSign = "";
+            candidateCount = 0;
+
+            predictionDiv.innerText = "Prediction: —";
+
+            confidenceDiv.innerText =
+                "Confidence: " +
+                (confidence * 100).toFixed(1) +
+                "%";
+
+            if (confidenceFill) {
+                confidenceFill.style.width =
+                    Math.max(
+                        0,
+                        Math.min(100, confidence * 100)
+                    ) + "%";
+            }
+
+            status.innerText =
+                "🟡 Confidence below 60% - hold the sign clearly";
+
+            return;
+        }
+
+
+        /* =============================================
+           ROLLING 5-FRAME STABILITY
+        ============================================= */
+
+        /*
+           SHOW THE CURRENT VALID WORD IMMEDIATELY.
+           Stability is used for accepting the word, not for
+           delaying the visible prediction.
+        */
+        predictionDiv.innerText =
+            "Prediction: " +
+            prediction.toUpperCase();
+
+        confidenceDiv.innerText =
+            "Confidence: " +
+            (confidence * 100).toFixed(1) +
+            "%";
+
+        if (confidenceFill) {
+            confidenceFill.style.width =
+                Math.max(
+                    0,
+                    Math.min(100, confidence * 100)
+                ) + "%";
+        }
+
+        addPredictionToHistory(
+            prediction,
+            confidence
+        );
+
+        const stable = getStablePrediction();
+
+        if (!stable) {
+            status.innerText =
+                "🟡 Checking " +
+                prediction.toUpperCase() +
+                " ...";
+            return;
+        }
+
+
+        /* =============================================
+           REQUIRE 3 CONSISTENT RESULTS
+        ============================================= */
+
+        if (stable.prediction === candidateSign) {
+            candidateCount++;
+        } else {
+            candidateSign = stable.prediction;
+            candidateCount = 1;
+        }
+
+        if (
+            candidateCount < REQUIRED_STABLE_COUNT ||
+            stable.count < 2
+        ) {
+            status.innerText =
+                "🟡 Hold " +
+                stable.prediction.toUpperCase() +
+                " ... " +
+                Math.min(
+                    candidateCount,
+                    REQUIRED_STABLE_COUNT
+                ) +
+                "/" +
+                REQUIRED_STABLE_COUNT;
+            return;
+        }
+
+
+        /* =============================================
+           ACCEPT REAL CONFIDENCE >= 60%
+        ============================================= */
+
+        if (stable.confidence >= 0.60) {
+            cancelLowConfidenceAutoAccept();
+
+            if (stable.prediction !== lastAcceptedSign) {
+                sentence.push(stable.prediction);
+                lastAcceptedSign = stable.prediction;
+                lastAcceptedTime = Date.now();
+
+                candidateSign = "";
+                candidateCount = 0;
+                resetPredictionHistory();
+
+                updateSentenceDisplay();
+                scheduleNaturalSentence();
+                clearPendingPrediction();
+
+                status.innerText =
+                    "🟢 " +
+                    stable.prediction.toUpperCase() +
+                    " added (" +
+                    (stable.confidence * 100).toFixed(1) +
+                    "%)";
+            }
+        }
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Prediction error:",
+            error
+        );
+
+        status.innerText =
+            "🔴 Cannot connect to SignAI backend";
+
+    }
+
+    finally {
+
+        processing = false;
+
+    }
+
+});
+
+
+/* =====================================================
+   UPDATE RECOGNIZED SEQUENCE
+===================================================== */
+
+function updateSentenceDisplay() {
+
+    if (sentence.length === 0) {
+
+        sentenceDiv.innerText =
+            "Recognized signs: —";
+
+        naturalSentenceDiv.innerText =
+            "Natural sentence: —";
+
+        return;
+    }
+
+    sentenceDiv.innerText =
+        "Recognized signs: " +
+        sentence.join(" ").toUpperCase();
+}
+
+
+/* =====================================================
+   NATURAL SENTENCE - DEBOUNCED
+===================================================== */
+
+function scheduleNaturalSentence() {
+
+    if (sentenceTimer) {
+        clearTimeout(sentenceTimer);
+    }
+
+    naturalSentenceDiv.innerText =
+        "Natural sentence: " +
+        sentence.join(" ");
+
+    sentenceTimer = setTimeout(
+        generateNaturalSentence,
+        SENTENCE_DELAY
+    );
+}
+
+
+async function generateNaturalSentence() {
+
+    if (sentence.length === 0) {
+        return;
+    }
+
+    // Capture the complete sequence before sending it.
+    const sequenceSnapshot = [...sentence];
+
+    try {
+
+        const response = await fetch(
+            "http://127.0.0.1:8000/natural-sentence",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    words: sequenceSnapshot
+                })
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(
+                "Sentence API error: " +
+                response.status
+            );
+        }
+
+        const data =
+            await response.json();
+
+        // Never let an older request overwrite a newer
+        // longer sequence.
+        const stillSame =
+            sequenceSnapshot.length === sentence.length &&
+            sequenceSnapshot.every(
+                function(word, index) {
+                    return word === sentence[index];
+                }
+            );
+
+        if (stillSame) {
+
+            naturalSentenceDiv.innerText =
+                "Natural sentence: " +
+                (data.sentence || sequenceSnapshot.join(" "));
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Natural sentence error:",
+            error
+        );
+
+        naturalSentenceDiv.innerText =
+            "Natural sentence: " +
+            sentence.join(" ");
+    }
+}
+
+
+/* Backward-compatible function */
+function updateSentence() {
+
+    updateSentenceDisplay();
+    scheduleNaturalSentence();
+}
+
+
+/* =====================================================
+   SPEAK COMPLETE SENTENCE
+===================================================== */
+
+function speakSentence() {
+
+    if (sentence.length === 0) {
+
+        alert(
+            "No signs have been detected yet."
+        );
+
+        return;
+    }
+
+
+    if (
+        !("speechSynthesis" in window)
+    ) {
+
+        alert(
+            "Speech synthesis is not supported."
+        );
+
+        return;
+    }
+
+
+    const naturalText =
+        naturalSentenceDiv.innerText
+            .replace("Natural sentence:", "")
+            .trim();
+
+    const text =
+        naturalText || sentence.join(" ");
+
+
+    const speech =
+        new SpeechSynthesisUtterance(text);
+
+
+    speech.lang = "en-US";
+
+    speech.rate = 0.85;
+
+    speech.pitch = 1;
+
+
+    window.speechSynthesis.cancel();
+
+    window.speechSynthesis.speak(speech);
+
+}
+
+
+/* =====================================================
+   CLEAR SENTENCE
+===================================================== */
+
+function clearSentence() {
+
+    cancelLowConfidenceAutoAccept();
+    clearPendingPrediction();
+
+    if (sentenceTimer) {
+        clearTimeout(sentenceTimer);
+        sentenceTimer = null;
+    }
+
+    sentence = [];
+
+    candidateSign = "";
+
+    candidateCount = 0;
+    resetPredictionHistory();
+
+    lastAcceptedSign = "";
+
+    lastAcceptedTime = 0;
+
+
+    sentenceDiv.innerText =
+        "Recognized signs: —";
+
+    naturalSentenceDiv.innerText =
+        "Natural sentence: —";
+
+    predictionDiv.innerText =
+        "Prediction: —";
+
+    confidenceDiv.innerText =
+        "Confidence: —";
+
+    status.innerText =
+        "🟢 Sentence cleared";
+
+}
+
+
+/* =====================================================
+   START CAMERA
+===================================================== */
+
+async function startCamera() {
+
+    try {
+
+        if (cameraStarted) {
+
+            status.innerText =
+                "🟢 Camera is already running";
+
+            return;
+        }
+
+
+        stream =
+            await navigator.mediaDevices
+                .getUserMedia({
+
+                    video: {
+                        width: 640,
+                        height: 480
+                    },
+
+                    audio: false
+
+                });
+
+
+        video.srcObject =
+            stream;
+
+        await video.play();
+
+
+        cameraStarted =
+            true;
+
+
+        status.innerText =
+            "🟢 Camera running - show your hand";
+
+
+        processVideo();
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Camera error:",
+            error
+        );
+
+        cameraStarted =
+            false;
+
+        status.innerText =
+            "🔴 Camera access failed";
+
+    }
+
+}
+
+
+/* =====================================================
+   PROCESS VIDEO
+===================================================== */
+
+async function processVideo() {
+
+    if (
+        !cameraStarted ||
+        !video.srcObject
+    ) {
+
+        return;
+    }
+
+
+    if (
+        video.readyState >= 2
+    ) {
+
+        try {
+
+            await hands.send({
+                image: video
+            });
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "MediaPipe error:",
+                error
+            );
+
+        }
+
+    }
+
+
+    requestAnimationFrame(
+        processVideo
+    );
+
+}
+
+
+/* =====================================================
+   STOP CAMERA
+===================================================== */
+
+function stopCamera() {
+
+    cancelLowConfidenceAutoAccept();
+    clearPendingPrediction();
+
+    cameraStarted =
+        false;
+
+    processing =
+        false;
+
+
+    if (stream) {
+
+        stream
+            .getTracks()
+            .forEach(function(track) {
+
+                track.stop();
+
+            });
+
+    }
+
+
+    stream = null;
+
+    video.srcObject = null;
+
+
+    status.innerText =
+        "Camera stopped";
+
+    predictionDiv.innerText =
+        "Prediction: —";
+
+    confidenceDiv.innerText =
+        "Confidence: —";
+
+
+    candidateSign = "";
+
+    candidateCount = 0;
+
+}
+
+
+/* =====================================================
+   PAGE CLOSE
+===================================================== */
+
+window.addEventListener(
+    "beforeunload",
+    function() {
+
+        if (stream) {
+
+            stream
+                .getTracks()
+                .forEach(function(track) {
+
+                    track.stop();
+
+                });
+
+        }
+
+    }
+);
+
+</script>
+
+</body>
+</html>

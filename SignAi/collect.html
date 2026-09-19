@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>SignAI - Dataset Collector</title>
+
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 25px;
+        }
+
+        video {
+            width: 640px;
+            max-width: 90%;
+            border: 3px solid black;
+            border-radius: 10px;
+            transform: scaleX(-1);
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 6px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        select {
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        #status {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 15px;
+        }
+
+        #count {
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+<h1>SignAI Dataset Collector</h1>
+
+<p>Select the sign you are collecting:</p>
+
+
+<select id="label">
+
+    <option value="hello">HELLO</option>
+
+    <option value="yes">YES</option>
+
+    <option value="no">NO</option>
+     <option value="thanks">THANKS</option>
+    <option value="help">HELP</option>
+    <option value="sorry">SORRY</option>
+    <option value="stop">STOP</option>
+    <option value="water">WATER</option>
+     <option value="pain">PAIN</option>
+   
+</select>
+
+
+<br><br>
+
+
+<button onclick="startCamera()">
+    📷 Start Camera
+</button>
+
+
+<button onclick="startCollection()">
+    🔴 Start Collecting
+</button>
+
+
+<button onclick="stopCollection()">
+    ⛔ Stop Collection
+</button>
+
+
+<button onclick="stopCamera()">
+    🔴 Stop Camera
+</button>
+
+
+<div id="status">
+    Camera not started
+</div>
+
+
+<div>
+
+    Samples in current batch:
+
+    <span id="count">0</span>
+
+</div>
+
+
+<br>
+
+
+<video
+    id="video"
+    autoplay
+    playsinline
+    muted>
+</video>
+
+
+<script>
+
+/* =====================================================
+   VARIABLES
+===================================================== */
+
+let stream = null;
+
+let cameraStarted = false;
+
+let collecting = false;
+
+let processing = false;
+
+let lastCaptureTime = 0;
+
+
+/*
+   IMPORTANT:
+
+   Samples stay here while collecting.
+
+   Nothing is sent to FastAPI
+   until Stop Collection is clicked.
+*/
+
+let currentBatch = [];
+
+
+/* =====================================================
+   ELEMENTS
+===================================================== */
+
+const video =
+    document.getElementById("video");
+
+const status =
+    document.getElementById("status");
+
+const count =
+    document.getElementById("count");
+
+
+/* =====================================================
+   MEDIAPIPE
+===================================================== */
+
+const hands = new Hands({
+
+    locateFile: function(file) {
+
+        return (
+            "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" +
+            file
+        );
+
+    }
+
+});
+
+
+hands.setOptions({
+
+    maxNumHands: 1,
+
+    modelComplexity: 1,
+
+    minDetectionConfidence: 0.6,
+
+    minTrackingConfidence: 0.6
+
+});
+
+
+/* =====================================================
+   HAND DETECTION RESULTS
+===================================================== */
+
+hands.onResults(function(results) {
+
+    /*
+       If collection is not active,
+       don't save anything.
+    */
+
+    if (!collecting) {
+        return;
+    }
+
+
+    /*
+       Check whether a hand exists.
+    */
+
+    if (
+        !results.multiHandLandmarks ||
+        results.multiHandLandmarks.length === 0
+    ) {
+
+        status.innerText =
+            "🟡 Collecting - show your hand";
+
+        return;
+    }
+
+
+    /*
+       Get first hand.
+    */
+
+    const landmarks =
+        results.multiHandLandmarks[0];
+
+
+    /*
+       Convert:
+
+       21 landmarks ×
+       X, Y, Z
+
+       = 63 values
+    */
+
+    const features = [];
+
+
+    for (const point of landmarks) {
+
+        features.push(point.x);
+
+        features.push(point.y);
+
+        features.push(point.z);
+
+    }
+
+
+    /*
+       Capture approximately
+       5 samples per second.
+    */
+
+    const now =
+        Date.now();
+
+
+    if (
+        now - lastCaptureTime < 200
+    ) {
+
+        return;
+
+    }
+
+
+    lastCaptureTime =
+        now;
+
+
+    /*
+       Store locally.
+    */
+
+    saveLocalSample(features);
+
+});
+
+
+/* =====================================================
+   SAVE SAMPLE LOCALLY
+===================================================== */
+
+function saveLocalSample(features) {
+
+    const label =
+        document.getElementById("label").value;
+
+
+    /*
+       Store sample in browser memory.
+    */
+
+    currentBatch.push({
+
+        label: label,
+
+        landmarks: features
+
+    });
+
+
+    /*
+       Update counter.
+    */
+
+    count.innerText =
+        currentBatch.length;
+
+
+    status.innerText =
+        "🔴 Collecting " +
+        label.toUpperCase() +
+        " — " +
+        currentBatch.length +
+        " samples";
+
+
+    console.log(
+        "Local sample:",
+        currentBatch.length
+    );
+
+}
+
+
+/* =====================================================
+   START CAMERA
+===================================================== */
+
+async function startCamera() {
+
+    try {
+
+        /*
+           Prevent duplicate camera streams.
+        */
+
+        if (
+            cameraStarted &&
+            video.srcObject
+        ) {
+
+            status.innerText =
+                "🟢 Camera already running";
+
+            return;
+
+        }
+
+
+        stream =
+            await navigator.mediaDevices
+                .getUserMedia({
+
+                    video: {
+
+                        width: 640,
+
+                        height: 480
+
+                    },
+
+                    audio: false
+
+                });
+
+
+        video.srcObject =
+            stream;
+
+
+        await video.play();
+
+
+        cameraStarted =
+            true;
+
+
+        status.innerText =
+            "🟢 Camera running — ready to collect";
+
+
+        processVideo();
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Camera error:",
+            error
+        );
+
+
+        cameraStarted =
+            false;
+
+
+        status.innerText =
+            "🔴 Camera access failed";
+
+    }
+
+}
+
+
+/* =====================================================
+   PROCESS VIDEO
+===================================================== */
+
+async function processVideo() {
+
+    /*
+       Only stop when camera is
+       actually stopped.
+    */
+
+    if (
+        !cameraStarted ||
+        !video.srcObject
+    ) {
+
+        return;
+
+    }
+
+
+    if (
+        video.readyState >= 2
+    ) {
+
+        try {
+
+            await hands.send({
+
+                image: video
+
+            });
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "MediaPipe error:",
+                error
+            );
+
+        }
+
+    }
+
+
+    requestAnimationFrame(
+        processVideo
+    );
+
+}
+
+
+/* =====================================================
+   START COLLECTION
+===================================================== */
+
+function startCollection() {
+
+    /*
+       Camera must be running.
+    */
+
+    if (
+        !cameraStarted ||
+        !video.srcObject
+    ) {
+
+        alert(
+            "Please click Start Camera first."
+        );
+
+        return;
+
+    }
+
+
+    /*
+       Make sure previous batch
+       is cleared.
+    */
+
+    currentBatch = [];
+
+
+    count.innerText =
+        "0";
+
+
+    lastCaptureTime =
+        0;
+
+
+    collecting =
+        true;
+
+
+    const label =
+        document.getElementById("label").value;
+
+
+    status.innerText =
+        "🔴 Collecting " +
+        label.toUpperCase() +
+        " — show your hand";
+
+
+    console.log(
+        "Collection started:",
+        label
+    );
+
+}
+
+
+/* =====================================================
+   STOP COLLECTION
+===================================================== */
+
+async function stopCollection() {
+
+    /*
+       Stop collecting new samples.
+    */
+
+    collecting =
+        false;
+
+
+    if (
+        currentBatch.length === 0
+    ) {
+
+        status.innerText =
+            "⚠️ No samples collected";
+
+        return;
+
+    }
+
+
+    status.innerText =
+        "⏳ Saving " +
+        currentBatch.length +
+        " samples...";
+
+
+    /*
+       Make a copy of the batch.
+    */
+
+    const batchToSend =
+        [...currentBatch];
+
+
+    try {
+
+        /*
+           Send the COMPLETE batch
+           to FastAPI once.
+        */
+
+        const response =
+            await fetch(
+                "http://127.0.0.1:8000/collect-batch",
+                {
+
+                    method: "POST",
+
+                    headers: {
+
+                        "Content-Type":
+                            "application/json"
+
+                    },
+
+                    body: JSON.stringify({
+
+                        samples:
+                            batchToSend
+
+                    })
+
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Backend error: " +
+                response.status
+            );
+
+        }
+
+
+        const data =
+            await response.json();
+
+
+        status.innerText =
+            "✅ Saved " +
+            data.added +
+            " samples. Total dataset: " +
+            data.total_samples;
+
+
+        /*
+           Reset current batch.
+        */
+
+        currentBatch = [];
+
+
+        count.innerText =
+            "0";
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Batch save error:",
+            error
+        );
+
+
+        /*
+           IMPORTANT:
+           Keep the samples in memory
+           if saving fails.
+        */
+
+        currentBatch =
+            batchToSend;
+
+
+        count.innerText =
+            currentBatch.length;
+
+
+        status.innerText =
+            "🔴 Could not save samples. " +
+            "Your collected samples are still in memory.";
+
+    }
+
+}
+
+
+/* =====================================================
+   STOP CAMERA
+===================================================== */
+
+function stopCamera() {
+
+    /*
+       Stop collection first.
+    */
+
+    collecting =
+        false;
+
+
+    cameraStarted =
+        false;
+
+
+    if (stream) {
+
+        stream
+            .getTracks()
+            .forEach(function(track) {
+
+                track.stop();
+
+            });
+
+    }
+
+
+    stream =
+        null;
+
+
+    video.srcObject =
+        null;
+
+
+    status.innerText =
+        "Camera stopped";
+
+
+    console.log(
+        "Camera stopped"
+    );
+
+}
+
+
+/* =====================================================
+   PAGE CLOSE
+===================================================== */
+
+window.addEventListener(
+    "beforeunload",
+    function() {
+
+        if (stream) {
+
+            stream
+                .getTracks()
+                .forEach(function(track) {
+
+                    track.stop();
+
+                });
+
+        }
+
+    }
+);
+
+</script>

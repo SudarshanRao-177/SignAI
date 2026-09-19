@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignAI - Practice Mode</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:linear-gradient(135deg,#0f172a,#172554);color:white;min-height:100vh}
+header{height:75px;display:flex;align-items:center;justify-content:space-between;padding:0 35px;background:rgba(15,23,42,.85);border-bottom:1px solid rgba(255,255,255,.1)}
+.logo{font-size:28px;font-weight:bold;color:#60a5fa}.brand{font-size:15px;color:#cbd5e1}
+.container{width:92%;max-width:1250px;margin:30px auto}.title{text-align:center;margin-bottom:25px}
+.title h1{font-size:32px;margin-bottom:8px}.title p{color:#94a3b8}
+.grid{display:grid;grid-template-columns:1fr 1.2fr;gap:25px}
+.card{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:25px;backdrop-filter:blur(15px);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.card h2{margin-bottom:18px;color:#93c5fd}.target{text-align:center}
+.target-name{font-size:36px;font-weight:bold;color:#60a5fa;margin-bottom:20px}
+.gesture-gif{width:100%;max-width:350px;height:250px;object-fit:contain;background:#020617;border-radius:15px;border:1px solid rgba(255,255,255,.1)}
+video{width:100%;height:330px;object-fit:cover;background:black;border-radius:15px;transform:scaleX(-1)}
+.prediction{text-align:center;margin-top:18px}.prediction-label{color:#94a3b8;font-size:14px}
+.prediction-word{font-size:32px;font-weight:bold;margin:5px 0;color:#f8fafc}.confidence{font-size:18px;color:#60a5fa}
+.status{text-align:center;margin-top:15px;padding:12px;border-radius:10px;background:rgba(0,0,0,.25);color:#cbd5e1}
+.score-box{display:flex;justify-content:space-between;margin-top:20px;padding:15px;background:rgba(255,255,255,.06);border-radius:12px}
+.score{font-size:25px;font-weight:bold;color:#4ade80}.buttons{display:flex;gap:12px;margin-top:20px}
+button{flex:1;padding:14px;border:none;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer}
+.start{background:#2563eb;color:white}.next{background:#16a34a;color:white}.stop{background:#dc2626;color:white}
+button:hover{opacity:.9}.result{text-align:center;margin-top:20px;font-size:22px;font-weight:bold;min-height:30px}
+@media(max-width:850px){.grid{grid-template-columns:1fr}video{height:280px}}
+</style>
+</head>
+<body>
+<header><div class="logo">SignAI</div><div class="brand">JACS • AI Powered Sign Language</div></header>
+
+<div class="container">
+<div class="title"><h1>Practice Mode</h1><p>Practice your Indian Sign Language gestures with AI</p></div>
+<div class="grid">
+
+<div class="card target">
+<h2>🎯 Your Target Sign</h2>
+<div class="target-name" id="targetSign">HELLO</div>
+<img id="gestureGif" class="gesture-gif" src="gestures/hello.gif" alt="Target sign">
+<div class="score-box">
+<div>Question<br><strong id="questionNumber">1 / 10</strong></div>
+<div>Score<br><span class="score" id="score">0</span></div>
+</div>
+</div>
+
+<div class="card">
+<h2>🤖 AI Gesture Recognition</h2>
+<video id="video" autoplay playsinline></video>
+<div class="prediction">
+<div class="prediction-label">AI Prediction</div>
+<div class="prediction-word" id="prediction">Waiting...</div>
+<div class="confidence" id="confidence">Confidence: 0%</div>
+</div>
+<div class="status" id="status">Click START PRACTICE to begin.</div>
+<div class="buttons">
+<button class="start" onclick="startPractice()">▶ START PRACTICE</button>
+<button class="stop" onclick="stopPractice()">■ STOP</button>
+<button class="next" onclick="nextQuestion()">NEXT →</button>
+</div>
+<div class="result" id="result"></div>
+</div>
+
+</div>
+</div>
+
+<!-- MediaPipe is required because /predict-sign expects 63 hand-landmark values. -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+<script>
+const signs=[
+{name:"HELLO",gif:"hello.gif"},
+{name:"YES",gif:"yes.gif"},
+{name:"NO",gif:"no.gif"},
+{name:"THANKS",gif:"thankyou.gif"},
+{name:"PLEASE",gif:"please.gif"},
+{name:"HELP",gif:"help.gif"},
+{name:"SORRY",gif:"sorry.gif"},
+{name:"STOP",gif:"stop.gif"},
+{name:"WATER",gif:"water.gif"},
+{name:"PAIN",gif:"pain.gif"}
+];
+
+let currentQuestion=0,score=0,cameraStream=null,practiceRunning=false;
+let processing=false,lastPredictionTime=0,targetMatchCount=0;
+let questionCompleted=false;
+const REQUIRED_MATCHES=3;
+const video=document.getElementById("video");
+
+const hands=new Hands({
+ locateFile:file=>"https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+file
+});
+hands.setOptions({
+ maxNumHands:1,modelComplexity:1,
+ minDetectionConfidence:.5,minTrackingConfidence:.5
+});
+
+hands.onResults(async results=>{
+ if(!practiceRunning)return;
+
+ if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
+  targetMatchCount=0;
+  document.getElementById("prediction").textContent="Show your hand";
+  document.getElementById("confidence").textContent="Confidence: 0%";
+  document.getElementById("status").textContent="Place your hand clearly inside the camera.";
+  return;
+ }
+
+ const now=Date.now();
+ if(now-lastPredictionTime<300||processing)return;
+ lastPredictionTime=now;
+ processing=true;
+
+ try{
+  const landmarks=results.multiHandLandmarks[0];
+  const features=[];
+  landmarks.forEach(p=>{features.push(p.x,p.y,p.z)});
+
+  if(features.length!==63)throw new Error("Expected 63 features, received "+features.length);
+
+  const response=await fetch("http://127.0.0.1:8000/predict-sign",{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({landmarks:features})
+  });
+
+  if(!response.ok)throw new Error("Backend returned HTTP "+response.status);
+
+  const data=await response.json();
+  console.log("Practice AI:",data);
+
+  const predicted=String(data.prediction||"unknown").trim().toUpperCase();
+  let confidence=Number(data.confidence||0);
+  if(confidence<=1)confidence*=100;
+
+  document.getElementById("prediction").textContent=predicted||"UNKNOWN";
+  document.getElementById("confidence").textContent="Confidence: "+confidence.toFixed(1)+"%";
+  checkAnswer(predicted,confidence);
+
+ }catch(error){
+  console.error("Practice prediction error:",error);
+  document.getElementById("status").textContent="❌ Backend connection error. Make sure main.py is running.";
+ }finally{processing=false}
+});
+
+function loadQuestion(){
+ questionCompleted=false;
+ const sign=signs[currentQuestion];
+ document.getElementById("targetSign").textContent=sign.name;
+ document.getElementById("gestureGif").src="gestures/"+sign.gif;
+ document.getElementById("gestureGif").style.display="inline-block";
+ document.getElementById("questionNumber").textContent=(currentQuestion+1)+" / "+signs.length;
+ document.getElementById("prediction").textContent="Waiting...";
+ document.getElementById("confidence").textContent="Confidence: 0%";
+ document.getElementById("result").textContent="";
+ document.getElementById("status").textContent=practiceRunning?"Show the target sign to the camera.":"Click START PRACTICE to begin.";
+ targetMatchCount=0;
+}
+
+async function startPractice(){
+ if(practiceRunning)return;
+ try{
+  cameraStream=await navigator.mediaDevices.getUserMedia({
+   video:{width:640,height:480},audio:false
+  });
+  video.srcObject=cameraStream;
+  await video.play();
+  practiceRunning=true;
+  targetMatchCount=0;
+  document.getElementById("status").textContent="🤖 AI is ready. Show the target sign.";
+  processCamera();
+ }catch(error){
+  console.error("Camera error:",error);
+  document.getElementById("status").textContent="❌ Camera permission denied or unavailable.";
+ }
+}
+
+async function processCamera(){
+ if(!practiceRunning)return;
+ try{
+  if(video.readyState>=2)await hands.send({image:video});
+ }catch(error){console.error("MediaPipe error:",error)}
+ if(practiceRunning)requestAnimationFrame(processCamera);
+}
+
+function checkAnswer(predicted,confidence){
+ if(questionCompleted)return;
+
+ if(predicted==="UNKNOWN"||confidence<60){
+  targetMatchCount=0;
+  document.getElementById("status").textContent="🟡 Hold the target sign clearly...";
+  return;
+ }
+
+ const target=signs[currentQuestion].name;
+
+ if(predicted===target){
+  targetMatchCount++;
+
+  if(targetMatchCount<REQUIRED_MATCHES){
+   document.getElementById("status").textContent="🟡 Hold "+target+" ... "+targetMatchCount+"/"+REQUIRED_MATCHES;
+   return;
+  }
+
+  questionCompleted=true;
+  score++;
+  document.getElementById("score").textContent=score;
+  document.getElementById("result").textContent="✅ Correct!";
+  document.getElementById("status").textContent="Great job! Click NEXT.";
+
+  /*
+   * IMPORTANT:
+   * Keep the camera and MediaPipe running.
+   * The old version stopped practiceRunning here,
+   * which made the next question stay at "Waiting...".
+   */
+ }else{
+  targetMatchCount=0;
+  document.getElementById("status").textContent="Try again — target is "+target+".";
+ }
+}
+
+function stopPractice(){
+ practiceRunning=false;
+ questionCompleted=false;
+ processing=false;
+ targetMatchCount=0;
+ if(cameraStream){
+  cameraStream.getTracks().forEach(track=>track.stop());
+  cameraStream=null;
+ }
+ video.srcObject=null;
+ document.getElementById("status").textContent="Practice stopped.";
+}
+
+function nextQuestion(){
+ questionCompleted=false;
+ if(currentQuestion>=signs.length-1){
+  finishPractice();
+  return;
+ }
+ currentQuestion++;
+ loadQuestion();
+ document.getElementById("status").textContent="Click START PRACTICE to begin.";
+}
+
+function finishPractice(){
+ stopPractice();
+ document.getElementById("targetSign").textContent="🎉 COMPLETE";
+ document.getElementById("gestureGif").style.display="none";
+ document.getElementById("prediction").textContent="Final Score";
+ document.getElementById("confidence").textContent=score+" / "+signs.length;
+ document.getElementById("questionNumber").textContent="10 / 10";
+ document.getElementById("status").textContent="Practice session completed!";
+ document.getElementById("result").textContent="🎉 You scored "+score+" out of "+signs.length;
+}
+
+loadQuestion();
+</script>
+</body>
+</html>
