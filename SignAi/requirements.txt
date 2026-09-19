@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+numpy
+scikit-learn
+joblib
+nltk
+pydantic
+python-multipart
+opencv-python-headless
+mediapipe==0.10.35
