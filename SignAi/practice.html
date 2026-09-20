@@ -28,47 +28,110 @@ button:hover{opacity:.9}.result{text-align:center;margin-top:20px;font-size:22px
 @media(max-width:850px){.grid{grid-template-columns:1fr}video{height:280px}}
 </style>
 </head>
+
 <body>
-<header><div class="logo">SignAI</div><div class="brand">JACS • AI Powered Sign Language</div></header>
+
+<header>
+<div class="logo">SignAI</div>
+<div class="brand">JACS • AI Powered Sign Language</div>
+</header>
 
 <div class="container">
-<div class="title"><h1>Practice Mode</h1><p>Practice your Indian Sign Language gestures with AI</p></div>
+
+<div class="title">
+<h1>Practice Mode</h1>
+<p>Practice your Indian Sign Language gestures with AI</p>
+</div>
+
 <div class="grid">
 
 <div class="card target">
+
 <h2>🎯 Your Target Sign</h2>
+
 <div class="target-name" id="targetSign">HELLO</div>
-<img id="gestureGif" class="gesture-gif" src="gestures/hello.gif" alt="Target sign">
+
+<img
+id="gestureGif"
+class="gesture-gif"
+src="gestures/hello.gif"
+alt="Target sign"
+>
+
 <div class="score-box">
-<div>Question<br><strong id="questionNumber">1 / 10</strong></div>
-<div>Score<br><span class="score" id="score">0</span></div>
+
+<div>
+Question<br>
+<strong id="questionNumber">1 / 10</strong>
 </div>
+
+<div>
+Score<br>
+<span class="score" id="score">0</span>
 </div>
+
+</div>
+
+</div>
+
 
 <div class="card">
+
 <h2>🤖 AI Gesture Recognition</h2>
+
 <video id="video" autoplay playsinline></video>
+
 <div class="prediction">
+
 <div class="prediction-label">AI Prediction</div>
-<div class="prediction-word" id="prediction">Waiting...</div>
-<div class="confidence" id="confidence">Confidence: 0%</div>
+
+<div class="prediction-word" id="prediction">
+Waiting...
 </div>
-<div class="status" id="status">Click START PRACTICE to begin.</div>
+
+<div class="confidence" id="confidence">
+Confidence: 0%
+</div>
+
+</div>
+
+<div class="status" id="status">
+Click START PRACTICE to begin.
+</div>
+
 <div class="buttons">
-<button class="start" onclick="startPractice()">▶ START PRACTICE</button>
-<button class="stop" onclick="stopPractice()">■ STOP</button>
-<button class="next" onclick="nextQuestion()">NEXT →</button>
+
+<button class="start" onclick="startPractice()">
+▶ START PRACTICE
+</button>
+
+<button class="stop" onclick="stopPractice()">
+■ STOP
+</button>
+
+<button class="next" onclick="nextQuestion()">
+NEXT →
+</button>
+
 </div>
+
 <div class="result" id="result"></div>
+
 </div>
 
 </div>
 </div>
+
 
 <!-- MediaPipe is required because /predict-sign expects 63 hand-landmark values. -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
 
 <script>
+
+/* =========================================================
+   SIGN LIST
+   ========================================================= */
+
 const signs=[
 {name:"HELLO",gif:"hello.gif"},
 {name:"YES",gif:"yes.gif"},
@@ -82,181 +145,573 @@ const signs=[
 {name:"PAIN",gif:"pain.gif"}
 ];
 
-let currentQuestion=0,score=0,cameraStream=null,practiceRunning=false;
-let processing=false,lastPredictionTime=0,targetMatchCount=0;
+
+/* =========================================================
+   BACKEND CONNECTION
+   =========================================================
+   
+   Local:
+   127.0.0.1:8000
+   
+   Deployed:
+   Uses the same website origin.
+   ========================================================= */
+
+const API_BASE =
+(
+    location.hostname === "127.0.0.1" ||
+    location.hostname === "localhost"
+)
+    ? "http://127.0.0.1:8000"
+    : "";
+
+
+/* =========================================================
+   VARIABLES
+   ========================================================= */
+
+let currentQuestion=0,
+    score=0,
+    cameraStream=null,
+    practiceRunning=false;
+
+let processing=false,
+    lastPredictionTime=0,
+    targetMatchCount=0;
+
 let questionCompleted=false;
+
 const REQUIRED_MATCHES=3;
+
 const video=document.getElementById("video");
+
+
+/* =========================================================
+   MEDIAPIPE HANDS
+   ========================================================= */
 
 const hands=new Hands({
  locateFile:file=>"https://cdn.jsdelivr.net/npm/@mediapipe/hands/"+file
 });
+
 hands.setOptions({
- maxNumHands:1,modelComplexity:1,
- minDetectionConfidence:.5,minTrackingConfidence:.5
+ maxNumHands:1,
+ modelComplexity:1,
+ minDetectionConfidence:.5,
+ minTrackingConfidence:.5
 });
 
+
+/* =========================================================
+   MEDIAPIPE RESULTS
+   ========================================================= */
+
 hands.onResults(async results=>{
+
  if(!practiceRunning)return;
 
- if(!results.multiHandLandmarks||!results.multiHandLandmarks.length){
+
+ if(
+   !results.multiHandLandmarks ||
+   !results.multiHandLandmarks.length
+ ){
+
   targetMatchCount=0;
+
   document.getElementById("prediction").textContent="Show your hand";
-  document.getElementById("confidence").textContent="Confidence: 0%";
-  document.getElementById("status").textContent="Place your hand clearly inside the camera.";
+
+  document.getElementById("confidence").textContent=
+      "Confidence: 0%";
+
+  document.getElementById("status").textContent=
+      "Place your hand clearly inside the camera.";
+
   return;
  }
 
+
  const now=Date.now();
- if(now-lastPredictionTime<300||processing)return;
+
+
+ if(
+   now-lastPredictionTime<300 ||
+   processing
+ ){
+   return;
+ }
+
+
  lastPredictionTime=now;
  processing=true;
 
+
  try{
+
+  /* Get the detected hand */
+
   const landmarks=results.multiHandLandmarks[0];
+
+  /* Convert 21 landmarks × x,y,z = 63 features */
+
   const features=[];
-  landmarks.forEach(p=>{features.push(p.x,p.y,p.z)});
 
-  if(features.length!==63)throw new Error("Expected 63 features, received "+features.length);
-
-  const response=await fetch("https://signai-hvuc.onrender.com/predict-sign",{
-   method:"POST",
-   headers:{"Content-Type":"application/json"},
-   body:JSON.stringify({landmarks:features})
+  landmarks.forEach(p=>{
+    features.push(p.x,p.y,p.z);
   });
 
-  if(!response.ok)throw new Error("Backend returned HTTP "+response.status);
 
-  const data=await response.json();
-  console.log("Practice AI:",data);
+  if(features.length!==63){
 
-  const predicted=String(data.prediction||"unknown").trim().toUpperCase();
-  let confidence=Number(data.confidence||0);
-  if(confidence<=1)confidence*=100;
+    throw new Error(
+      "Expected 63 features, received "+features.length
+    );
 
-  document.getElementById("prediction").textContent=predicted||"UNKNOWN";
-  document.getElementById("confidence").textContent="Confidence: "+confidence.toFixed(1)+"%";
-  checkAnswer(predicted,confidence);
-
- }catch(error){
-  console.error("Practice prediction error:",error);
-  document.getElementById("status").textContent="❌ Backend connection error. Make sure main.py is running.";
- }finally{processing=false}
-});
-
-function loadQuestion(){
- questionCompleted=false;
- const sign=signs[currentQuestion];
- document.getElementById("targetSign").textContent=sign.name;
- document.getElementById("gestureGif").src="gestures/"+sign.gif;
- document.getElementById("gestureGif").style.display="inline-block";
- document.getElementById("questionNumber").textContent=(currentQuestion+1)+" / "+signs.length;
- document.getElementById("prediction").textContent="Waiting...";
- document.getElementById("confidence").textContent="Confidence: 0%";
- document.getElementById("result").textContent="";
- document.getElementById("status").textContent=practiceRunning?"Show the target sign to the camera.":"Click START PRACTICE to begin.";
- targetMatchCount=0;
-}
-
-async function startPractice(){
- if(practiceRunning)return;
- try{
-  cameraStream=await navigator.mediaDevices.getUserMedia({
-   video:{width:640,height:480},audio:false
-  });
-  video.srcObject=cameraStream;
-  await video.play();
-  practiceRunning=true;
-  targetMatchCount=0;
-  document.getElementById("status").textContent="🤖 AI is ready. Show the target sign.";
-  processCamera();
- }catch(error){
-  console.error("Camera error:",error);
-  document.getElementById("status").textContent="❌ Camera permission denied or unavailable.";
- }
-}
-
-async function processCamera(){
- if(!practiceRunning)return;
- try{
-  if(video.readyState>=2)await hands.send({image:video});
- }catch(error){console.error("MediaPipe error:",error)}
- if(practiceRunning)requestAnimationFrame(processCamera);
-}
-
-function checkAnswer(predicted,confidence){
- if(questionCompleted)return;
-
- if(predicted==="UNKNOWN"||confidence<60){
-  targetMatchCount=0;
-  document.getElementById("status").textContent="🟡 Hold the target sign clearly...";
-  return;
- }
-
- const target=signs[currentQuestion].name;
-
- if(predicted===target){
-  targetMatchCount++;
-
-  if(targetMatchCount<REQUIRED_MATCHES){
-   document.getElementById("status").textContent="🟡 Hold "+target+" ... "+targetMatchCount+"/"+REQUIRED_MATCHES;
-   return;
   }
 
+
+  /* =====================================================
+     SEND LANDMARKS TO SIGN AI BACKEND
+     ===================================================== */
+
+  const response=await fetch(
+    API_BASE+"/predict-sign",
+    {
+      method:"POST",
+
+      headers:{
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+        landmarks:features
+      })
+    }
+  );
+
+
+  if(!response.ok){
+
+    throw new Error(
+      "Backend returned HTTP "+response.status
+    );
+
+  }
+
+
+  const data=await response.json();
+
+  console.log("Practice AI:",data);
+
+
+  /* =====================================================
+     PROCESS PREDICTION
+     ===================================================== */
+
+  const predicted=
+    String(
+      data.prediction || "unknown"
+    )
+    .trim()
+    .toUpperCase();
+
+
+  let confidence=
+    Number(data.confidence || 0);
+
+
+  if(confidence<=1){
+    confidence*=100;
+  }
+
+
+  document.getElementById("prediction").textContent=
+      predicted || "UNKNOWN";
+
+
+  document.getElementById("confidence").textContent=
+      "Confidence: "+confidence.toFixed(1)+"%";
+
+
+  checkAnswer(
+    predicted,
+    confidence
+  );
+
+
+ }catch(error){
+
+  console.error(
+    "Practice prediction error:",
+    error
+  );
+
+
+  document.getElementById("status").textContent=
+      "❌ Backend connection error. Make sure main.py is running.";
+
+ }finally{
+
+  processing=false;
+
+ }
+
+});
+
+
+/* =========================================================
+   LOAD QUESTION
+   ========================================================= */
+
+function loadQuestion(){
+
+ questionCompleted=false;
+
+
+ const sign=signs[currentQuestion];
+
+
+ document.getElementById("targetSign").textContent=
+     sign.name;
+
+
+ document.getElementById("gestureGif").src=
+     "gestures/"+sign.gif;
+
+
+ document.getElementById("gestureGif").style.display=
+     "inline-block";
+
+
+ document.getElementById("questionNumber").textContent=
+     (currentQuestion+1)+" / "+signs.length;
+
+
+ document.getElementById("prediction").textContent=
+     "Waiting...";
+
+
+ document.getElementById("confidence").textContent=
+     "Confidence: 0%";
+
+
+ document.getElementById("result").textContent=
+     "";
+
+
+ document.getElementById("status").textContent=
+     practiceRunning
+       ? "Show the target sign to the camera."
+       : "Click START PRACTICE to begin.";
+
+
+ targetMatchCount=0;
+
+}
+
+
+/* =========================================================
+   START PRACTICE
+   ========================================================= */
+
+async function startPractice(){
+
+ if(practiceRunning)return;
+
+
+ try{
+
+  cameraStream=
+    await navigator.mediaDevices.getUserMedia({
+      video:{
+        width:640,
+        height:480
+      },
+      audio:false
+    });
+
+
+  video.srcObject=cameraStream;
+
+
+  await video.play();
+
+
+  practiceRunning=true;
+
+  targetMatchCount=0;
+
+
+  document.getElementById("status").textContent=
+      "🤖 AI is ready. Show the target sign.";
+
+
+  processCamera();
+
+
+ }catch(error){
+
+  console.error(
+    "Camera error:",
+    error
+  );
+
+
+  document.getElementById("status").textContent=
+      "❌ Camera permission denied or unavailable.";
+
+ }
+
+}
+
+
+/* =========================================================
+   PROCESS CAMERA
+   ========================================================= */
+
+async function processCamera(){
+
+ if(!practiceRunning)return;
+
+
+ try{
+
+  if(video.readyState>=2){
+
+    await hands.send({
+      image:video
+    });
+
+  }
+
+ }catch(error){
+
+  console.error(
+    "MediaPipe error:",
+    error
+  );
+
+ }
+
+
+ if(practiceRunning){
+
+  requestAnimationFrame(
+    processCamera
+  );
+
+ }
+
+}
+
+
+/* =========================================================
+   CHECK ANSWER
+   ========================================================= */
+
+function checkAnswer(
+  predicted,
+  confidence
+){
+
+ if(questionCompleted)return;
+
+
+ if(
+   predicted==="UNKNOWN" ||
+   confidence<60
+ ){
+
+  targetMatchCount=0;
+
+  document.getElementById("status").textContent=
+      "🟡 Hold the target sign clearly...";
+
+  return;
+
+ }
+
+
+ const target=
+   signs[currentQuestion].name;
+
+
+ if(predicted===target){
+
+  targetMatchCount++;
+
+
+  if(
+    targetMatchCount<
+    REQUIRED_MATCHES
+  ){
+
+    document.getElementById("status").textContent=
+        "🟡 Hold "+target+
+        " ... "+
+        targetMatchCount+
+        "/"+
+        REQUIRED_MATCHES;
+
+    return;
+
+  }
+
+
   questionCompleted=true;
+
   score++;
-  document.getElementById("score").textContent=score;
-  document.getElementById("result").textContent="✅ Correct!";
-  document.getElementById("status").textContent="Great job! Click NEXT.";
+
+
+  document.getElementById("score").textContent=
+      score;
+
+
+  document.getElementById("result").textContent=
+      "✅ Correct!";
+
+
+  document.getElementById("status").textContent=
+      "Great job! Click NEXT.";
+
 
   /*
    * IMPORTANT:
-   * Keep the camera and MediaPipe running.
-   * The old version stopped practiceRunning here,
-   * which made the next question stay at "Waiting...".
+   * Keep camera and MediaPipe running.
+   * This allows the next question to work
+   * without restarting the camera.
    */
+
+
  }else{
+
   targetMatchCount=0;
-  document.getElementById("status").textContent="Try again — target is "+target+".";
+
+
+  document.getElementById("status").textContent=
+      "Try again — target is "+target+".";
+
  }
+
 }
+
+
+/* =========================================================
+   STOP PRACTICE
+   ========================================================= */
 
 function stopPractice(){
+
  practiceRunning=false;
+
  questionCompleted=false;
+
  processing=false;
+
  targetMatchCount=0;
+
+
  if(cameraStream){
-  cameraStream.getTracks().forEach(track=>track.stop());
+
+  cameraStream
+    .getTracks()
+    .forEach(track=>track.stop());
+
   cameraStream=null;
+
  }
+
+
  video.srcObject=null;
- document.getElementById("status").textContent="Practice stopped.";
+
+
+ document.getElementById("status").textContent=
+     "Practice stopped.";
+
 }
+
+
+/* =========================================================
+   NEXT QUESTION
+   ========================================================= */
 
 function nextQuestion(){
+
  questionCompleted=false;
- if(currentQuestion>=signs.length-1){
+
+
+ if(
+   currentQuestion>=
+   signs.length-1
+ ){
+
   finishPractice();
+
   return;
+
  }
+
+
  currentQuestion++;
+
+
  loadQuestion();
- document.getElementById("status").textContent="Click START PRACTICE to begin.";
+
+
+ document.getElementById("status").textContent=
+     "Click START PRACTICE to begin.";
+
 }
+
+
+/* =========================================================
+   FINISH PRACTICE
+   ========================================================= */
 
 function finishPractice(){
+
  stopPractice();
- document.getElementById("targetSign").textContent="🎉 COMPLETE";
- document.getElementById("gestureGif").style.display="none";
- document.getElementById("prediction").textContent="Final Score";
- document.getElementById("confidence").textContent=score+" / "+signs.length;
- document.getElementById("questionNumber").textContent="10 / 10";
- document.getElementById("status").textContent="Practice session completed!";
- document.getElementById("result").textContent="🎉 You scored "+score+" out of "+signs.length;
+
+
+ document.getElementById("targetSign").textContent=
+     "🎉 COMPLETE";
+
+
+ document.getElementById("gestureGif").style.display=
+     "none";
+
+
+ document.getElementById("prediction").textContent=
+     "Final Score";
+
+
+ document.getElementById("confidence").textContent=
+     score+" / "+signs.length;
+
+
+ document.getElementById("questionNumber").textContent=
+     "10 / 10";
+
+
+ document.getElementById("status").textContent=
+     "Practice session completed!";
+
+
+ document.getElementById("result").textContent=
+     "🎉 You scored "+
+     score+
+     " out of "+
+     signs.length;
+
 }
 
+
+/* =========================================================
+   INITIAL LOAD
+   ========================================================= */
+
 loadQuestion();
+
 </script>
+
 </body>
 </html>

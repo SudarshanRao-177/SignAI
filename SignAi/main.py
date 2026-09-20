@@ -43,6 +43,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# GIFs are available at /gestures/<filename>.gif
 app.mount(
     "/gestures",
     StaticFiles(directory=GESTURES_DIR),
@@ -53,13 +54,14 @@ app.mount(
 # =========================================================
 # CORS
 # =========================================================
+# Local development + deployed frontend origins.
+# allow_origins=["*"] is used so the same backend can serve
+# the pages locally and on Render without CORS blocking.
+# =========================================================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500"
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -104,14 +106,6 @@ except Exception as error:
 # =========================================================
 # GESTURE / GIF MAPPING
 # =========================================================
-#
-# These names correspond to files inside:
-#
-# SignAi/
-# └── gestures/
-#
-# Values below are GIF filenames WITHOUT ".gif"
-#
 
 gesture_map = {
 
@@ -160,10 +154,6 @@ class TextInput(BaseModel):
 @app.post("/text-to-gesture")
 def text_to_gesture(data: TextInput):
 
-    # -----------------------------------------------------
-    # CLEAN INPUT
-    # -----------------------------------------------------
-
     text = data.text.lower().strip()
 
     text = "".join(
@@ -173,23 +163,12 @@ def text_to_gesture(data: TextInput):
 
     text = " ".join(text.split())
 
-
-    # -----------------------------------------------------
-    # EMPTY INPUT
-    # -----------------------------------------------------
-
     if not text:
 
         return {
             "sequence": ["unknown"]
         }
 
-
-    # -----------------------------------------------------
-    # SPECIAL PHRASES
-    # -----------------------------------------------------
-
-    # How are you?
     if text in [
         "how are you",
         "how r you",
@@ -200,24 +179,18 @@ def text_to_gesture(data: TextInput):
             "sequence": ["howareyou"]
         }
 
-
-    # Good morning
     if text == "good morning":
 
         return {
             "sequence": ["goodmorning"]
         }
 
-
-    # Thank you
     if text == "thank you":
 
         return {
             "sequence": ["thankyou"]
         }
 
-
-    # What is your name?
     if text in [
         "what is your name",
         "whats your name",
@@ -231,19 +204,9 @@ def text_to_gesture(data: TextInput):
             "sequence": ["whatisyourname"]
         }
 
-
-    # -----------------------------------------------------
-    # TOKENIZE
-    # -----------------------------------------------------
-
     words = word_tokenize(text)
 
     result = []
-
-
-    # -----------------------------------------------------
-    # CONVERT WORDS TO GIF NAMES
-    # -----------------------------------------------------
 
     for word in words:
 
@@ -253,15 +216,9 @@ def text_to_gesture(data: TextInput):
                 gesture_map[word]
             )
 
-
-    # -----------------------------------------------------
-    # NOTHING MATCHED
-    # -----------------------------------------------------
-
     if not result:
 
         result = ["unknown"]
-
 
     return {
         "sequence": result
@@ -277,34 +234,22 @@ class LandmarkInput(BaseModel):
     landmarks: list[float]
 
 
-# =========================================================
-# SAVE SINGLE LANDMARK SAMPLE
-# =========================================================
-
 @app.post("/collect-landmark")
 def collect_landmark(data: LandmarkInput):
 
     dataset = []
 
-
-    # Load existing dataset
     if os.path.exists(DATASET_FILE):
 
         try:
 
-            with open(
-                DATASET_FILE,
-                "r"
-            ) as file:
-
+            with open(DATASET_FILE, "r") as file:
                 dataset = json.load(file)
 
         except Exception:
 
             dataset = []
 
-
-    # Validate landmark count
     if len(data.landmarks) != 63:
 
         return {
@@ -316,8 +261,6 @@ def collect_landmark(data: LandmarkInput):
             "total_samples": len(dataset)
         }
 
-
-    # Add sample
     dataset.append(
         {
             "label": data.label,
@@ -325,18 +268,12 @@ def collect_landmark(data: LandmarkInput):
         }
     )
 
-
-    # Save dataset
-    with open(
-        DATASET_FILE,
-        "w"
-    ) as file:
+    with open(DATASET_FILE, "w") as file:
 
         json.dump(
             dataset,
             file
         )
-
 
     return {
         "status": "saved",
@@ -357,41 +294,25 @@ def collect_batch(data: LandmarkBatch):
 
     dataset = []
 
-
-    # Load existing dataset
     if os.path.exists(DATASET_FILE):
 
         try:
 
-            with open(
-                DATASET_FILE,
-                "r"
-            ) as file:
-
+            with open(DATASET_FILE, "r") as file:
                 dataset = json.load(file)
 
         except Exception:
 
             dataset = []
 
+    dataset.extend(data.samples)
 
-    # Add batch
-    dataset.extend(
-        data.samples
-    )
-
-
-    # Save dataset
-    with open(
-        DATASET_FILE,
-        "w"
-    ) as file:
+    with open(DATASET_FILE, "w") as file:
 
         json.dump(
             dataset,
             file
         )
-
 
     return {
         "status": "saved",
@@ -420,13 +341,10 @@ def build_natural_sentence(words):
 
             cleaned.append(word)
 
-
     if not cleaned:
 
         return ""
 
-
-    # Remove consecutive duplicates
     compact = []
 
     for word in cleaned:
@@ -434,11 +352,6 @@ def build_natural_sentence(words):
         if not compact or word != compact[-1]:
 
             compact.append(word)
-
-
-    # -----------------------------------------------------
-    # EXACT PHRASES
-    # -----------------------------------------------------
 
     key = tuple(compact)
 
@@ -493,15 +406,9 @@ def build_natural_sentence(words):
             "What is your name?"
     }
 
-
     if key in exact_phrases:
 
         return exact_phrases[key]
-
-
-    # -----------------------------------------------------
-    # LONGER SEQUENCES
-    # -----------------------------------------------------
 
     has_hello = "hello" in compact
     has_help = "help" in compact
@@ -511,47 +418,33 @@ def build_natural_sentence(words):
     has_sorry = "sorry" in compact
     has_stop = "stop" in compact
 
-
-    # STOP
     if has_stop:
 
         return "Please stop."
 
-
-    # Common full requests
     if has_hello and has_help and has_please and has_water:
 
         return "Hello, I need help, please give me water."
-
 
     if has_hello and has_help and has_please:
 
         return "Hello, I need help, please."
 
-
     if has_hello and has_help and has_water:
 
         return "Hello, I need help with water."
-
 
     if has_hello and has_please and has_water:
 
         return "Hello, please give me water."
 
-
     if has_help and has_please and has_water:
 
         return "Please help me, and give me water."
 
-
     if has_sorry and has_thanks:
 
         return "I am sorry, thank you."
-
-
-    # -----------------------------------------------------
-    # SINGLE SIGN SENTENCES
-    # -----------------------------------------------------
 
     if len(compact) == 1:
 
@@ -575,15 +468,9 @@ def build_natural_sentence(words):
             "goodmorning": "Good morning."
         }
 
-
         if single in single_map:
 
             return single_map[single]
-
-
-    # -----------------------------------------------------
-    # FALLBACK
-    # -----------------------------------------------------
 
     return " ".join(compact).capitalize() + "."
 
@@ -611,10 +498,6 @@ class PredictionInput(BaseModel):
 @app.post("/predict-sign")
 def predict_sign(data: PredictionInput):
 
-    # -----------------------------------------------------
-    # CHECK MODEL
-    # -----------------------------------------------------
-
     if model is None:
 
         return {
@@ -622,11 +505,6 @@ def predict_sign(data: PredictionInput):
             "confidence": 0.0,
             "error": "ML model is not loaded"
         }
-
-
-    # -----------------------------------------------------
-    # CHECK LANDMARK COUNT
-    # -----------------------------------------------------
 
     if len(data.landmarks) != 63:
 
@@ -639,38 +517,20 @@ def predict_sign(data: PredictionInput):
             )
         }
 
-
     try:
-
-        # -------------------------------------------------
-        # CONVERT TO NUMPY
-        # -------------------------------------------------
 
         features = np.array(
             data.landmarks,
             dtype=float
         ).reshape(1, -1)
 
-
-        # -------------------------------------------------
-        # PREDICTION
-        # -------------------------------------------------
-
         prediction = model.predict(
             features
         )[0]
 
-
-        # -------------------------------------------------
-        # CONFIDENCE
-        # -------------------------------------------------
-
         confidence = 0.0
 
-        if hasattr(
-            model,
-            "predict_proba"
-        ):
+        if hasattr(model, "predict_proba"):
 
             probabilities = model.predict_proba(
                 features
@@ -679,11 +539,6 @@ def predict_sign(data: PredictionInput):
             confidence = float(
                 np.max(probabilities)
             )
-
-
-        # -------------------------------------------------
-        # RESPONSE
-        # -------------------------------------------------
 
         return {
 
@@ -695,14 +550,12 @@ def predict_sign(data: PredictionInput):
             )
         }
 
-
     except Exception as error:
 
         print(
             "Prediction error:",
             error
         )
-
 
         return {
 
@@ -717,9 +570,23 @@ def predict_sign(data: PredictionInput):
 # =========================================================
 # WEBSITE PAGES
 # =========================================================
+#
+# IMPORTANT:
+# FastAPI serves the complete frontend from the same server.
+# This fixes /index.html -> Not Found and also makes the
+# logo, GIFs and other files available on Render.
+# =========================================================
 
 @app.get("/")
 def root():
+
+    return FileResponse(
+        os.path.join(BASE_DIR, "index.html")
+    )
+
+
+@app.get("/index.html")
+def index_page():
 
     return FileResponse(
         os.path.join(BASE_DIR, "index.html")
@@ -751,6 +618,38 @@ def collect_page():
 
 
 # =========================================================
+# FRONTEND ASSETS
+# =========================================================
+#
+# The HTML files use relative paths such as:
+#   SignAI LOGO.png
+#   gestures/hello.gif
+#
+# GIFs are already mounted above. This catch-all route
+# serves files such as the logo and any other frontend asset.
+#
+# It is deliberately placed AFTER all API/page routes.
+# =========================================================
+
+@app.get("/{file_path:path}")
+def frontend_asset(file_path: str):
+
+    # Never allow ../ path traversal.
+    safe_path = os.path.normpath(
+        os.path.join(BASE_DIR, file_path)
+    )
+
+    if not safe_path.startswith(os.path.abspath(BASE_DIR)):
+        return {"detail": "Not Found"}
+
+    if os.path.isfile(safe_path):
+
+        return FileResponse(safe_path)
+
+    return {"detail": "Not Found"}
+
+
+# =========================================================
 # SERVER STARTUP MESSAGE
 # =========================================================
 
@@ -763,11 +662,16 @@ def startup_message():
     print("        SIGN AI BACKEND READY")
     print("========================================")
 
+    print("Home             : /")
+    print("Index page       : /index.html")
+    print("Live Sign        : /realtime.html")
+    print("Practice         : /practice.html")
+    print("Dataset          : /collect.html")
     print("Text conversion  : /text-to-gesture")
     print("Dataset sample   : /collect-landmark")
     print("Dataset batch    : /collect-batch")
     print("AI prediction    : /predict-sign")
-
+    print("Logo             : /SignAI%20LOGO.png")
     print("Model loaded     :", model is not None)
 
     print("========================================")
